@@ -1,13 +1,11 @@
-# pathway/app/chat_routes.py
-
 from fastapi import APIRouter, HTTPException
 from typing import Optional, List, Dict
 from supabase import create_client, Client
 import os
+import traceback
 
 from dotenv import load_dotenv
-from pathway.xpacks.llm.embedders import OpenAIEmbedder
-from pathway.xpacks.llm.llms import OpenAIChat
+from openai import OpenAI
 
 # ---------------------------------------------------------------------
 # Environment / config
@@ -26,23 +24,10 @@ if not OPENAI_API_KEY:
     raise ValueError("OPENAI_API_KEY is missing. Check your .env")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
 router = APIRouter()
 
-# ---------------------------------------------------------------------
-# Pathway LLM xPack objects (embedder optional here, but ready for RAG)
-# ---------------------------------------------------------------------
-
-embedder = OpenAIEmbedder(
-    model="text-embedding-3-small",
-    api_key=OPENAI_API_KEY,
-)
-
-chat_llm = OpenAIChat(
-    model="gpt-4o-mini",
-    api_key=OPENAI_API_KEY,
-    temperature=0.1,
-)
+# OpenAI client
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # ---------------------------------------------------------------------
 # Helpers
@@ -58,7 +43,6 @@ def build_session_context(row: Dict) -> str:
     summary = row.get("summary") or ""
     medications = row.get("medications") or []
 
-    # medications is jsonb: expect list of {name, reason}
     med_lines: List[str] = []
     if isinstance(medications, list):
         for m in medications:
@@ -84,11 +68,16 @@ def build_session_context(row: Dict) -> str:
     return "\n".join(parts)
 
 
-def run_session_chat(patient_id: str, question: str, session_id: Optional[str] = None) -> dict:
+def run_session_chat(
+    patient_id: str,
+    question: str,
+    session_id: Optional[str] = None,
+) -> str:
     """
     - Fetch a session for this patient (latest or by session_id)
     - Build context from transcript + summary + medications
-    - Ask LLM with that context
+    - Ask OpenAI with that context
+    - Return plain answer text
     """
     # 1) Select session row from Supabase
     if session_id:
@@ -109,8 +98,8 @@ def run_session_chat(patient_id: str, question: str, session_id: Optional[str] =
         )
 
     result = query.execute()
-
     rows = result.data or []
+
     if not rows:
         raise HTTPException(
             status_code=404,
@@ -120,7 +109,7 @@ def run_session_chat(patient_id: str, question: str, session_id: Optional[str] =
     session_row = rows[0]
     context = build_session_context(session_row)
 
-    # 2) Build prompt for LLM
+    # 2) Build prompt
     system_prompt = (
         "You are a helpful, empathetic healthcare assistant.\n"
         "You are answering questions about a past medical session based ONLY on the provided context.\n"
@@ -133,14 +122,17 @@ def run_session_chat(patient_id: str, question: str, session_id: Optional[str] =
         f"Here is the context from their last session:\n\n{context}"
     )
 
-    # 3) Call Pathway LLM xPack (OpenAIChat wrapper)
-    answer_text = chat_llm(
-        [
+    # 3) Call OpenAI directly
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
-        ]
+        ],
+        temperature=0.1,
     )
 
+    answer_text = completion.choices[0].message.content
     return answer_text
 
 
@@ -160,23 +152,23 @@ def chat_with_patient_session(
 
     - Does NOT write to the database.
     - Reads `session` table (transcript, summary, medications).
-    - Uses Pathway's OpenAIChat to answer based on that context.
+    - Uses OpenAI chat completion to answer based on that context.
     """
     try:
-        result = run_session_chat(patient_id=patient_id, question=question, session_id=session_id)
+        answer = run_session_chat(
+            patient_id=patient_id,
+            question=question,
+            session_id=session_id,
+        )
         return {
             "patient_id": patient_id,
             "question": question,
-            "answer": result["answer"],
-            "session_id": result["session_id"],
-            "context_flags": {
-                "summary": result["used_summary"],
-                "transcript": result["used_transcript"],
-                "medications": result["used_medications"],
-            },
+            "answer": answer,
         }
     except HTTPException:
-        # re-raise specific HTTP errors
+        traceback.print_exc()
         raise
     except Exception as e:
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
