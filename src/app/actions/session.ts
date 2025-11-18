@@ -3,7 +3,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { AparaviDTC } from "aparavi-dtc-node-sdk";
-import AparaviPipeline from "./pipeline.json";
 
 export type Session = {
   id: string;
@@ -222,7 +221,7 @@ export async function getPatientSessionsByPatient(): Promise<ActionResult> {
   }
 }
 
-export async function chatWithAparvi() {
+export async function processWithAparavi() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -234,101 +233,105 @@ export async function chatWithAparvi() {
 
   const sessions = await getPatientSessionsByPatient();
 
-  const aparaviClient = new AparaviDTC(process.env.APARAVI_API_KEY);
+  try {
+    const aparaviClient = new AparaviDTC(process.env.APARAVI_API_KEY);
 
-  const pipeline = {
-    pipeline: {
-      components: [
-        {
-          id: "webhook_1",
-          provider: "webhook",
-          config: {
-            hideForm: true,
-            mode: "Source",
-            parameters: {},
-            type: "webhook",
+    const pipeline = {
+      pipeline: {
+        components: [
+          {
+            id: "webhook_1",
+            provider: "webhook",
+            config: {
+              hideForm: true,
+              mode: "Source",
+              parameters: {},
+              type: "webhook",
+            },
+            ui: {
+              position: {
+                x: 320,
+                y: 220,
+              },
+              measured: {
+                width: 150,
+                height: 36,
+              },
+              data: {
+                provider: "webhook",
+                class: "source",
+                type: "default",
+              },
+              formDataValid: true,
+            },
           },
-          ui: {
-            position: {
-              x: 320,
-              y: 220,
+          {
+            id: "parse_1",
+            provider: "parse",
+            config: {},
+            ui: {
+              position: {
+                x: 580,
+                y: 220,
+              },
+              measured: {
+                width: 150,
+                height: 36,
+              },
+              data: {
+                provider: "parse",
+                class: "data",
+                type: "default",
+              },
+              formDataValid: true,
             },
-            measured: {
-              width: 150,
-              height: 36,
-            },
-            data: {
-              provider: "webhook",
-              class: "source",
-              type: "default",
-            },
-            formDataValid: true,
+            input: [
+              {
+                lane: "tags",
+                from: "webhook_1",
+              },
+            ],
           },
-        },
-        {
-          id: "parse_1",
-          provider: "parse",
-          config: {},
-          ui: {
-            position: {
-              x: 580,
-              y: 220,
+          {
+            id: "response_1",
+            provider: "response",
+            config: {
+              lanes: [],
             },
-            measured: {
-              width: 150,
-              height: 36,
+            ui: {
+              position: {
+                x: 860,
+                y: 200,
+              },
+              measured: {
+                width: 150,
+                height: 36,
+              },
+              data: {
+                provider: "response",
+                class: "infrastructure",
+                type: "default",
+              },
+              formDataValid: true,
             },
-            data: {
-              provider: "parse",
-              class: "data",
-              type: "default",
-            },
-            formDataValid: true,
+            input: [
+              {
+                lane: "text",
+                from: "parse_1",
+              },
+            ],
           },
-          input: [
-            {
-              lane: "tags",
-              from: "webhook_1",
-            },
-          ],
-        },
-        {
-          id: "response_1",
-          provider: "response",
-          config: {
-            lanes: [],
-          },
-          ui: {
-            position: {
-              x: 860,
-              y: 200,
-            },
-            measured: {
-              width: 150,
-              height: 36,
-            },
-            data: {
-              provider: "response",
-              class: "infrastructure",
-              type: "default",
-            },
-            formDataValid: true,
-          },
-          input: [
-            {
-              lane: "text",
-              from: "parse_1",
-            },
-          ],
-        },
-      ],
-      servicesVersion: 1,
-      id: "b9be2081-eccc-45b9-ba1a-3cf33311398e",
-    },
-  };
+        ],
+        servicesVersion: 1,
+        id: "b9be2081-eccc-45b9-ba1a-3cf33311398e",
+      },
+    };
 
-  await aparaviClient.startTask(pipeline);
-  const result = await aparaviClient.sendToWebhook(sessions);
+    await aparaviClient.startTask(pipeline);
+    const result = await aparaviClient.sendToWebhook(sessions);
 
-  return result;
+    return { sessions, result };
+  } catch {
+    return { sessions };
+  }
 }

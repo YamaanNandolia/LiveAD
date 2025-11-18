@@ -1,28 +1,26 @@
-"use client";
+import { doctorTheme } from "@/lib/theme/doctor";
+import { InvitePatientDialog } from "./invite-patient-dialog";
 
-import { InvitePatientDialog } from "@/components/invite-patient-dialog";
-import { patientTheme } from "@/lib/theme/patient";
-
-interface DashboardHeaderProps {
+interface DoctorDashboardHeaderProps {
   title: string;
   description?: string;
   showInviteButton?: boolean;
 }
 
-export function DashboardHeader({
+export function DoctorDashboardHeader({
   title,
   description,
   showInviteButton = false,
-}: DashboardHeaderProps) {
+}: DoctorDashboardHeaderProps) {
   return (
     <div className="flex items-center justify-between">
       <div>
         <h1
           className={`
             text-3xl
-            font-bold
+            font-semibold
             tracking-tight
-            ${patientTheme.textMain}
+            ${doctorTheme.textMain}
           `}
         >
           {title}
@@ -32,31 +30,32 @@ export function DashboardHeader({
             className={`
               text-sm
               mt-1
-              ${patientTheme.textMuted}
+              ${doctorTheme.textMuted}
             `}
           >
             {description}
           </p>
         )}
       </div>
+
       {showInviteButton && (
         <div
           className={`
             inline-flex
             items-center
-            rounded-full
+            rounded-md
             border
-            px-4
-            py-2
+            px-3
+            py-1.5
             text-sm
             font-medium
             shadow-sm
             transition-colors
             duration-200
-            ${patientTheme.brandAccentBg}
-            ${patientTheme.brandAccentBorder}
-            ${patientTheme.brand}
-            hover:bg-[#FFE4CC]
+            ${doctorTheme.brandAccentBg}
+            ${doctorTheme.brandAccentBorder}
+            ${doctorTheme.brand}
+            hover:bg-[#D8E5FF]
           `}
         >
           <InvitePatientDialog />
