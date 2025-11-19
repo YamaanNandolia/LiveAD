@@ -26,7 +26,11 @@ interface Session {
   transcript: string | null
   summary: string | null
   inferences: string[] | null
-  medications: string[] | null
+  medications: Array<{
+    name: string
+    reason: string
+    frequency: string
+  }> | string[] | null
   created_at: string
   ended_at: string | null
 }
@@ -252,9 +256,21 @@ export function SessionsList({
                         Medications
                       </h5>
                       <div className="space-y-2">
-                        {session.medications.map((med: string, idx: number) => (
-                          <div key={idx} className="bg-background p-3 rounded-lg">
-                            <p className="font-medium text-sm">{med}</p>
+                        {session.medications.map((med, idx: number) => (
+                          <div key={idx} className="bg-background p-3 rounded-lg border">
+                            {typeof med === 'string' ? (
+                              <p className="font-medium text-sm">{med}</p>
+                            ) : (
+                              <>
+                                <p className="font-medium text-sm">{med.name}</p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  <span className="font-medium">Reason:</span> {med.reason}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  <span className="font-medium">Frequency:</span> {med.frequency}
+                                </p>
+                              </>
+                            )}
                           </div>
                         ))}
                       </div>

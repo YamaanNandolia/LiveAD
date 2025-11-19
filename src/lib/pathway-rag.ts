@@ -60,7 +60,11 @@ interface SessionData {
   summary?: string;
   transcript?: string;
   inferences?: string[];
-  medications?: string[];
+  medications?: Array<{
+    name: string;
+    reason: string;
+    frequency: string;
+  }> | string[]; // Support both old and new format
 }
 
 interface FormData {
@@ -109,9 +113,16 @@ export function generatePatientDocument(
         });
       }
       if (session.medications && session.medications.length > 0) {
-        document += `Medications Discussed:\n`;
-        session.medications.forEach((med: string) => {
-          document += `- ${med}\n`;
+        document += `Medications:\n`;
+        session.medications.forEach((med) => {
+          // Handle both new format (object) and old format (string)
+          if (typeof med === 'string') {
+            document += `- ${med}\n`;
+          } else {
+            document += `- ${med.name}\n`;
+            document += `  Reason: ${med.reason}\n`;
+            document += `  Frequency: ${med.frequency}\n`;
+          }
         });
       }
       document += `\n`;

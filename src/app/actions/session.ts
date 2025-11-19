@@ -92,7 +92,7 @@ export async function updateSessionTranscript(
     // Generate AI analysis using OpenAI GPT-4o-mini (cheapest model)
     let summary = null;
     let inferences: string[] | null = null;
-    let medications: string[] | null = null;
+    let medications: Array<{ name: string; reason: string; frequency: string }> | null = null;
 
     try {
       const analysisResult = await generateSessionAnalysis(transcript);
@@ -110,7 +110,7 @@ export async function updateSessionTranscript(
         transcript,
         summary,
         inferences,
-        medications
+        medications: medications as unknown as object // Cast to object for JSONB type
       })
       .eq("id", sessionId)
       .eq("doctor_id", user.id)
@@ -137,7 +137,11 @@ export async function updateSessionTranscript(
 async function generateSessionAnalysis(transcript: string): Promise<{
   summary: string;
   inferences: string[];
-  medications: string[];
+  medications: Array<{
+    name: string;
+    reason: string;
+    frequency: string;
+  }>;
 }> {
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
   
@@ -159,8 +163,25 @@ async function generateSessionAnalysis(transcript: string): Promise<{
           content: `You are a medical assistant analyzing doctor-patient consultation transcripts. 
 Extract key information and provide it in valid JSON format with these fields:
 - summary: A concise 2-3 sentence summary of the consultation
-- inferences: Array of clinical observations, symptoms, or diagnoses mentioned
-- medications: Array of medications discussed (name only, one per item)
+- inferences: Array of clinical observations, symptoms, or diagnoses mentioned (strings)
+- medications: Array of medication objects, each with:
+  - name: Medication name
+  - reason: Why it was prescribed/discussed
+  - frequency: How often to take it (e.g., "twice daily", "once at bedtime", "as needed")
+
+Example medications format:
+[
+  {
+    "name": "Lisinopril 10mg",
+    "reason": "High blood pressure management",
+    "frequency": "Once daily"
+  },
+  {
+    "name": "Metformin 500mg",
+    "reason": "Type 2 diabetes management",
+    "frequency": "Twice daily with meals"
+  }
+]
 
 Return ONLY valid JSON, no additional text.`
         },
